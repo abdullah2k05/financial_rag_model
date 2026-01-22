@@ -256,6 +256,24 @@ Total Spending
             cats = Analytics.calculate_category_breakdown(txs)
             top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
             symbol = self._get_active_currency()
+
+            # Additional facts for authoritative data
+            debits = [t for t in txs if t.type.lower() == "debit"]
+            credits = [t for t in txs if t.type.lower() == "credit"]
+            highest_debit = max(debits, key=lambda x: x.amount, default=None)
+            highest_credit = max(credits, key=lambda x: x.amount, default=None)
+
+            # Most frequent merchant (by transaction count)
+            merch_freq = {}
+            for d in debits:
+                merch_freq[d.description] = merch_freq.get(d.description, 0) + 1
+            most_freq_merch = max(merch_freq.items(), key=lambda x: x[1], default=(None, 0))
+
+            # Top income source (by amount)
+            sender_amount = {}
+            for c in credits:
+                sender_amount[c.description] = sender_amount.get(c.description, 0) + c.amount
+            top_sender = max(sender_amount.items(), key=lambda x: x[1], default=(None, 0))
             
             # 2. Vector Retrieval
             print(f"[RagAgent] Classifying intent (History: {len(chat_history)} turns)...")
@@ -341,41 +359,56 @@ Total Spending
             cat_details = ""
             if intent == "SUMMARY" or category or True: # Always include some breakdown
                 cat_details = f"- **Top Categories**: {', '.join([f'{c}: {symbol}{v:,.2f}' for c, v in top_cats])}"
+                # Add ALL category breakdowns for comprehensive context
+                if cats:
+                    all_cats_detail = "\n".join([f"  - {cat}: {symbol}{amt:,.2f}" for cat, amt in sorted(cats.items(), key=lambda x: x[1], reverse=True)])
+                    cat_details += f"\n- **Category Breakdown (All)**:\n{all_cats_detail}"
                 if category and category in cats:
                     cat_details += f"\n- **{category} Specific Spending**: {symbol}{cats[category]:,.2f}"
 
+            hd_line = f"- **Highest Debit**: {symbol}{highest_debit.amount:,.2f} ({highest_debit.description[:30]}...) on {highest_debit.date.strftime('%b %d')}" if highest_debit else "- **Highest Debit**: N/A"
+            hc_line = f"- **Highest Credit**: {symbol}{highest_credit.amount:,.2f} ({highest_credit.description[:30]}...) on {highest_credit.date.strftime('%b %d')}" if highest_credit else "- **Highest Credit**: N/A"
+            mf_line = f"- **Most Frequent Merchant**: {most_freq_merch[0][:30]} ({most_freq_merch[1]} transactions)" if most_freq_merch[0] else "- **Most Frequent Merchant**: N/A"
+            ts_line = f"- **Top Income Source**: {top_sender[0][:30]} ({symbol}{top_sender[1]:,.2f})" if top_sender[0] else "- **Top Income Source**: N/A"
+
             authoritative_context = f"""
-### AUTHORITATIVE FINANCIAL SUMMARY (READ-ONLY TRUTH)
+### AUTHORITATIVE FINANCIAL SUMMARY (COMPLETE DATA)
 - **Total Income**: {symbol}{summ['total_income']:,.2f}
 - **Total Spending**: {symbol}{summ['total_expense']:,.2f}
 - **Net Balance**: {symbol}{summ['net_balance']:,.2f}
+{hd_line}
+{hc_line}
+{mf_line}
+{ts_line}
 {cat_details}
 {merch_details}
 """
             from app.services.vector_store import vector_store
-            chunks = vector_store.search(search_query, k=10)
+            chunks = vector_store.search(search_query, k=20)  # Increased for better coverage
+            print(f"[RagAgent] Retrieved {len(chunks)} context chunks")
             retrieved_context = "\n".join([f"• {doc.page_content}" for doc in chunks])
 
-            system_prompt = f"""You are a specialized Financial Data Analyst.
-Provide clear, structured answers with proper formatting and currency symbols.
+            system_prompt = f"""You are a specialized Financial Data Analyst with access to comprehensive transaction data.
+Your role is to provide accurate, clear answers using the authoritative financial summary provided below.
 
-STRICT CALCULATION RULES:
-- NEVER perform your own additions, subtractions, or percentages.
-- DO NOT sum the 'RETRIEVED TRANSACTIONS' provided below; they are only snippets for context.
-- Use ONLY the exact figures from 'AUTHORITATIVE DATA'. 
-- If the user asks for a sum or total that is NOT in 'AUTHORITATIVE DATA', state that you cannot calculate it precisely and offer to find the transactions instead.
+CORE PRINCIPLES:
+- ALWAYS use the exact figures from 'AUTHORITATIVE FINANCIAL DATA' when answering questions about totals, sums, or aggregates
+- The authoritative data contains pre-calculated, accurate totals - USE THEM DIRECTLY
+- Do NOT attempt to manually sum individual transactions from 'SAMPLE TRANSACTIONS' - those are examples only
+- If asked about a specific merchant/entity not in the authoritative data, acknowledge you need to search the detailed transactions
+- Provide clear, direct answers with proper currency formatting
 
-PROFESSIONAL FORMATTING GUIDELINES:
-- Structure responses with clear headings and sections
-- Use tables for summaries and detailed lists
-- Bold only key amounts and totals
-- ALWAYS use the currency symbol ({symbol}) for ALL monetary values
-- Maintain concise, informative language
+RESPONSE FORMATTING:
+- Lead with the direct answer (amount or key insight)
+- Use tables for summaries and transaction lists
+- Bold key amounts and totals  
+- ALWAYS include the currency symbol ({symbol}) for monetary values
+- Keep responses concise and focused on the user's question
 
-### AUTHORITATIVE DATA
+### AUTHORITATIVE FINANCIAL DATA
 {authoritative_context.strip()}
 
-### RETRIEVED TRANSACTIONS (SAMPLES ONLY - DO NOT USE FOR MATH)
+### SAMPLE TRANSACTIONS (For context - Do NOT sum these manually)
 {retrieved_context}
 """
             print(f"[RagAgent] Calling LLM generate_response...")

@@ -47,20 +47,24 @@ class VectorStore:
         
         documents = []
         for tx in transactions:
-            content = f"Date: {tx.date}, Description: {tx.description}, Amount: {tx.amount}, Category: {tx.category or 'Uncategorized'}"
+            # Enhanced content with amount and type for better semantic search
+            tx_type = "received" if tx.type.lower() == "credit" else "spent"
+            content = f"Transaction: {tx_type} ${tx.amount:.2f} on {tx.date.strftime('%Y-%m-%d')}. Description: {tx.description}. Category: {tx.category or 'Uncategorized'}. Type: {tx.type}."
             metadata = {
                 "id": str(tx.id) if hasattr(tx, 'id') else "",
                 "amount": tx.amount,
                 "type": tx.type,
                 "date": tx.date.isoformat() if hasattr(tx.date, 'isoformat') else str(tx.date),
-                "category": tx.category or ""
+                "category": tx.category or "",
+                "description": tx.description
             }
             documents.append(Document(page_content=content, metadata=metadata))
             
         self.db.add_documents(documents)
         print(f"Indexed {len(documents)} transactions.")
 
-    def search(self, query: str, k: int = 5) -> List[Document]:
+    def search(self, query: str, k: int = 20) -> List[Document]:
+        """Search for relevant transactions. Default k=20 for better coverage."""
         self._ensure_db()
         if not self.db: return []
         return self.db.similarity_search(query, k=k)
