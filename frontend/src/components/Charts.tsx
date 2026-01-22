@@ -3,8 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import { motion } from 'framer-motion';
-import { TrendingDown, Users, ShoppingBag, ArrowRight, Zap, Target, Award } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { TrendingDown, ShoppingBag, Zap, Target, Award } from 'lucide-react';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -105,9 +104,10 @@ export function Charts({ spendingData, trendData, merchantData = [], currency }:
                   paddingAngle={8}
                   dataKey="value"
                   stroke="none"
+                  cornerRadius={12}
                 >
                   {pieData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} cornerRadius={12} className="hover:opacity-80 transition-opacity cursor-pointer" />
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} className="hover:opacity-80 transition-opacity cursor-pointer" />
                   ))}
                 </Pie>
                 <Tooltip 
