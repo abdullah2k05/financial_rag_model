@@ -4,6 +4,16 @@ from app.services.analytics import Analytics
 from app.services.vector_store import vector_store
 
 router = APIRouter()
+import traceback
+
+@router.get("/transactions")
+async def get_transactions():
+    try:
+        return storage.get_all_transactions()
+    except Exception as e:
+        print("[ERROR] Failed to fetch transactions:", repr(e))
+        traceback.print_exc()
+        return []
 
 @router.get("/summary")
 async def get_summary():

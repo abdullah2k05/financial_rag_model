@@ -14,17 +14,20 @@ interface Transaction {
 interface TransactionTableProps {
   transactions: Transaction[];
   currency: string;
+  limit?: number;
+  pageSize?: number;
 }
 
-export function TransactionTable({ transactions, currency }: TransactionTableProps) {
+export function TransactionTable({ transactions, currency, limit, pageSize }: TransactionTableProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'credit' | 'debit'>('all');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const filteredTransactions = useMemo(() => {
-    let result = transactions.filter(t => {
+    const result = transactions.filter(t => {
       const matchesSearch = t.description.toLowerCase().includes(search.toLowerCase()) || 
                            (t.category?.toLowerCase() || '').includes(search.toLowerCase());
       const matchesType = filterType === 'all' || t.type === filterType;
@@ -40,6 +43,27 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
 
     return result;
   }, [transactions, search, filterType, sortOrder]);
+
+  const paginatedTransactions = useMemo(() => {
+    if (limit) {
+      return filteredTransactions.slice(0, limit);
+    }
+    if (pageSize) {
+      const start = (currentPage - 1) * pageSize;
+      return filteredTransactions.slice(start, start + pageSize);
+    }
+    return filteredTransactions;
+  }, [filteredTransactions, limit, pageSize, currentPage]);
+
+  const totalPages = pageSize ? Math.ceil(filteredTransactions.length / pageSize) : 1;
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(prev => prev + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) setCurrentPage(prev => prev - 1);
+  };
 
   const toggleSort = () => {
     setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
@@ -132,6 +156,32 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
               <X className="w-4 h-4" />
             </button>
           )}
+
+          {pageSize && filteredTransactions.length > pageSize && (
+            <div className="flex items-center gap-3 ml-2 pl-4 border-l border-border">
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest whitespace-nowrap">
+                {Math.min((currentPage - 1) * pageSize + 1, filteredTransactions.length)}-{Math.min(currentPage * pageSize, filteredTransactions.length)} of {filteredTransactions.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                  className="p-1.5 border border-border rounded-lg hover:bg-secondary disabled:opacity-30 transition-colors"
+                  title="Previous Page"
+                >
+                  <ChevronUp className="w-3.5 h-3.5 rotate-[270deg]" />
+                </button>
+                <button 
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 border border-border rounded-lg hover:bg-secondary disabled:opacity-30 transition-colors"
+                  title="Next Page"
+                >
+                  <ChevronDown className="w-3.5 h-3.5 rotate-[270deg]" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -150,7 +200,7 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {filteredTransactions.length === 0 ? (
+            {paginatedTransactions.length === 0 ? (
               <tr>
                 <td colSpan={3} className="px-6 py-20 text-center">
                   <div className="flex flex-col items-center gap-2 opacity-40">
@@ -160,7 +210,7 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
                 </td>
               </tr>
             ) : (
-              filteredTransactions.slice(0, 50).map((t, i) => (
+              paginatedTransactions.map((t, i) => (
                 <tr key={i} onClick={() => setSelectedTx(t)} className="hover:bg-secondary/20 transition-colors group cursor-pointer">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -201,12 +251,6 @@ export function TransactionTable({ transactions, currency }: TransactionTablePro
           </tbody>
         </table>
       </div>
-      
-      {filteredTransactions.length > 50 && (
-        <div className="p-4 bg-secondary/10 border-t border-border text-center">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-[0.1em]">Showing first 50 results (Total: {filteredTransactions.length})</p>
-        </div>
-      )}
       
       <AnimatePresence>
         {selectedTx && (

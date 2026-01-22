@@ -48,17 +48,25 @@ function App() {
   const fetchData = async () => {
     setIsLoadingData(true);
     try {
-      const [summRes, spendRes, trendRes, merchRes] = await Promise.all([
+      const [summRes, spendRes, trendRes, merchRes, transRes] = await Promise.all([
         fetch(`${API_BASE}/analytics/summary`),
         fetch(`${API_BASE}/analytics/spending`),
         fetch(`${API_BASE}/analytics/trends`),
-        fetch(`${API_BASE}/analytics/merchants`)
+        fetch(`${API_BASE}/analytics/merchants`),
+        fetch(`${API_BASE}/analytics/transactions`)
       ]);
 
       if (summRes.ok) setSummary(await summRes.json());
       if (spendRes.ok) setSpending(await spendRes.json());
       if (trendRes.ok) setTrends(await trendRes.json());
       if (merchRes.ok) setMerchants(await merchRes.json());
+      if (transRes.ok) {
+        const transData = await transRes.json();
+        setTransactions(transData);
+        if (transData.length > 0 && transData[0].currency) {
+          setCurrency(transData[0].currency);
+        }
+      }
     } catch (err) {
       console.error("Failed to fetch dashboard data", err);
     } finally {
@@ -222,7 +230,7 @@ function App() {
                 </section>
 
                 <section>
-                  <TransactionTable transactions={transactions} currency={currency} />
+                  <TransactionTable transactions={transactions} currency={currency} limit={10} />
                 </section>
               </motion.div>
             )}
@@ -251,7 +259,7 @@ function App() {
                 <SnapshotCard transactions={transactions} />
 
                 {/* Transactions Table */}
-                <TransactionTable transactions={transactions} currency={currency} />
+                <TransactionTable transactions={transactions} currency={currency} pageSize={25} />
               </motion.div>
             )}
 

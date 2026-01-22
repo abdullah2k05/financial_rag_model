@@ -74,17 +74,22 @@ class LLMService:
             # Fallback to CHAT to be safe
             return {"intent": "CHAT", "parameters": {}}
 
-    def generate_response(self, system_context: str, user_query: str, data_context: str) -> str:
+    def generate_response(self, system_context: str, user_query: str, data_context: str, history: list = []) -> str:
         """
-        Generate a natural language response based on financial data.
+        Generate a natural language response based on financial data and chat history.
         """
         try:
+            messages = [{"role": "system", "content": system_context}]
+            
+            # Inject history
+            for role, content in history:
+                messages.append({"role": role, "content": content})
+                
+            messages.append({"role": "user", "content": f"User Query: {user_query}\n\nData Context:\n{data_context}"})
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_context},
-                    {"role": "user", "content": f"User Query: {user_query}\n\nData Context:\n{data_context}"}
-                ],
+                messages=messages,
                 temperature=0.6, # User requested 0.6
                 top_p=0.95,      # User requested 0.95
                 max_completion_tokens=4096, # User requested 4096
