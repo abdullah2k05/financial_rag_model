@@ -1,6 +1,11 @@
 import asyncio
 from unittest.mock import MagicMock, patch
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# Load environment variables (for OpenAI/OpenRouter key)
+load_dotenv(".env") 
 
 # Mock Transaction class
 class MockTransaction:
@@ -24,29 +29,28 @@ mock_txs = [
 with patch("app.services.storage.storage") as mock_storage:
     mock_storage.get_all_transactions.return_value = mock_txs
     
-    # Import rag_agent (it will use the mocked storage if we patched it correctly, 
-    # but rag_agent imports storage at module level, so we might need to patch where it is used or imported)
-    # Actually, since rag_agent imports 'storage' instance, we can patch 'app.services.rag_agent.storage'
-    
+    # Import rag_agent 
     from app.services.rag_agent import rag_agent
     
-    # We need to re-apply the patch to the storage instance inside rag_agent because it was already imported
-    rag_agent.storage = mock_storage # This might not work if rag_agent.py uses 'storage' from global scope of its module.
-    # Let's check rag_agent.py imports: "from app.services.storage import storage"
-    # So we need to patch 'app.services.rag_agent.storage'
-
-    # Better way: Modify the storage reference in rag_agent module
+    # Needs to patch 'app.services.rag_agent.storage' or 'app.services.storage.storage' in the correct namespace
+    # Since rag_agent does 'from app.services.storage import storage', we target that
     import app.services.rag_agent
     app.services.rag_agent.storage = mock_storage
 
     async def run_test():
         print("--- Test 1: 'summarize all of my spending' ---")
-        response = await rag_agent.chat("summarize all of my spending")
-        print(f"Response:\n{response}\n")
+        try:
+            response = await rag_agent.chat("summarize all of my spending")
+            print(f"Response:\n{response}\n")
+        except Exception as e:
+            print(f"Test 1 Error: {e}")
         
         print("--- Test 2: 'summarize spending' ---")
-        response = await rag_agent.chat("summarize spending")
-        print(f"Response:\n{response}\n")
+        try:
+            response = await rag_agent.chat("summarize spending")
+            print(f"Response:\n{response}\n")
+        except Exception as e:
+            print(f"Test 2 Error: {e}")
 
     if __name__ == "__main__":
         asyncio.run(run_test())

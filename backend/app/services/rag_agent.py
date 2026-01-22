@@ -206,80 +206,6 @@ Total Spending
             
         return message
 
-    # ==========================================
-    # CONTEXT 3: FINANCIAL_AI_PAGE - Chat
-    # ==========================================
-    def _search_transactions(self, keyword: str, strict: bool = True) -> list:
-        """Search transactions by keyword. Character-exact per user rules."""
-        txs = storage.get_all_transactions()
-        k = " ".join(keyword.strip().lower().split())
-        
-        def normalize(s):
-            return " ".join(s.strip().lower().split())
-
-        if strict:
-            # Rule 1 & 2: Exact character-exact match constraint
-            return [t for t in txs if normalize(t.description) == k]
-            
-        return [t for t in txs if k in t.description.lower()]
-
-    def _handle_category_query(self, message: str) -> Optional[str]:
-        """Handle category-related questions concisely."""
-        txs = storage.get_all_transactions()
-        if not txs: return None
-        symbol = self._get_active_currency()
-        cats = Analytics.calculate_category_breakdown(txs)
-        
-        msg_l = message.lower()
-        for cat in cats.keys():
-            if cat.lower() in msg_l:
-                cat_txs = [t for t in txs if t.category and cat.lower() == t.category.lower()]
-                if not cat_txs: cat_txs = [t for t in txs if t.category and cat.lower() in t.category.lower()]
-                total = sum(t.amount for t in cat_txs)
-                return f"**{cat} Spending:** {symbol}{total:,.2f} ({len(cat_txs)} transactions)."
-        
-        return None
-
-    def _handle_search_query(self, message: str) -> Optional[str]:
-        """Handle exact search for merchants/recipients."""
-        txs = storage.get_all_transactions()
-        if not txs: return None
-        
-        # Noise filter: Keep identifiers like 'upi', 'neft' as they are often part of account titles
-        noise = {
-            'show', 'tell', 'search', 'find', 'what', 'where', 'when', 'how', 'much', 'many', 
-            'total', 'spend', 'spending', 'spent', 'transaction', 'transactions', 'payment', 
-            'money', 'amount', 'give', 'me', 'the', 'for', 'with', 'from', 'to', 'at', 'is', 
-            'are', 'was', 'were', 'credit', 'debit', 'income', 'expense', 'balance', 'highest',
-            'largest', 'biggest', 'top', 'bottom', 'details', 'detail', 'list', 'history',
-            'summary', 'overview', 'report', 'analysis', 'analyze', 'trend', 'trends',
-            'send', 'sent', 'paid', 'pay', 'transfer', 'transferred', 'it', 'me', 'did', 'do',
-            'stmt', 'ref', 'payout', 'rs', 'inr', 'rupees', 'rupee', 'and', 'my', 'his', 'her', 
-            'in', 'on', 'of', 'i', 'was', 'had', 'were'
-        }
-        
-        # Extract meaningful subject
-        words = message.split()
-        subjects = [w.strip("?,.!") for w in words if w.strip("?,.!") .lower() not in noise]
-        
-        if not subjects:
-            return None
-            
-        subject = " ".join(subjects)
-        is_strict_hint = any(w.isupper() for w in subjects if len(w) > 2)
-        
-        # Pass 1: Strict Match (Exact full string)
-        matches = self._search_transactions(subject, strict=True)
-        
-        # Pass 2: Keyword Inclusion Match (Instant)
-        if not matches:
-             matches = self._search_transactions(subject, strict=False)
-
-        if not matches:
-             return f"## 🔍 No Results Found\n\nNo transactions match **'{subject}'**. Try a different name or check your dashboard summary for spelling."
-
-        return self._format_search_response(subject, matches)
-
     def _format_search_response(self, keyword: str, matches: list) -> str:
         """Structured, clear answer format."""
         symbol = self._get_active_currency()
@@ -299,120 +225,145 @@ Total Spending
             res += f"| {t.date.strftime('%d %b')} | **{sign}{symbol}{t.amount:,.0f}** | {t.description[:25]} |\n"
         return res
 
+    # ==========================================
+    # CONTEXT 3: FINANCIAL_AI_PAGE - Chat (LLM ENHANCED)
+    # ==========================================
+    
     async def chat(self, message: str, chat_history: List = [], context: str = "FINANCIAL_AI_PAGE") -> str:
-        """Process user message based on context."""
+        """Process user message using LLM for intent understanding."""
+        from app.services.llm_service import llm_service
         
-        # Handle different contexts
+        # Handle non-chat contexts directly
         if context == "HOME_PAGE":
             return json.dumps(self.get_home_kpis())
-        
         if context == "TRANSACTIONS_PAGE":
             return self.get_transactions_snapshot()
         
         # FINANCIAL_AI_PAGE - Interactive chat
-        message_lower = message.lower()
         txs = storage.get_all_transactions()
-        symbol = self._get_active_currency()
-        
         if not txs:
             return "📊 **No transaction data found.**\n\nPlease upload a bank statement to begin analysis."
+
+        try:
+            # 1. Classify Intent
+            classification = llm_service.classify_intent(message, chat_history)
+            intent = classification.get("intent", "CHAT")
+            params = classification.get("parameters", {})
+            
+            print(f"[RagAgent] Intent: {intent}, Params: {params}") # Debug log
+
+            # 2. Route based on Intent
+            if intent == "SEARCH":
+                return self._handle_llm_search(params, txs)
+            
+            elif intent == "SUMMARY":
+                return await self._handle_llm_summary(message, params, txs)
+            
+            elif intent == "INSIGHTS":
+                return await self._handle_llm_insights(message, params, txs)
+            
+            else: # CHAT or fallback
+                return await self._handle_general_chat(message, txs)
+
+        except Exception as e:
+            print(f"[RagAgent] Error in chat loop: {e}")
+            import traceback
+            traceback.print_exc()
+            return "I encountered an error processing your request. Please try again."
+
+    # --- Handlers ---
+
+    def _handle_llm_search(self, params: dict, txs: list) -> str:
+        keywords = params.get("keywords", [])
+        if not keywords:
+            # Fallback if no specific keywords extracted
+            return "Could you specify what transaction you are looking for?"
+            
+        # Combine keywords for a broad search first
+        query = " ".join(keywords).lower()
         
-        # Rule: Resolve conversational references from memory (Strict Resolution)
-        resolved_message = self._resolve_references(message, chat_history)
+        # Smart Search Strategy
+        matches = []
+        # 1. Exact amount match (if any keyword is a number)
+        for k in keywords:
+            if str(k).replace('.','',1).isdigit():
+                amount = float(k)
+                matches.extend([t for t in txs if abs(t.amount - amount) < 0.1])
         
+        # 2. Description match
+        if not matches:
+             matches = [t for t in txs if query in t.description.lower()]
+        
+        # 3. Individual keyword match (broad)
+        if not matches:
+            for k in keywords:
+                matches.extend([t for t in txs if str(k).lower() in t.description.lower()])
+        
+        # Deduplicate
+        unique_matches = {t.date.isoformat()+t.description: t for t in matches}.values()
+        matches = list(unique_matches)
+
+        if not matches:
+            return f"## 🔍 No Results Found\n\nI couldn't find any transactions matching **'{query}'**."
+
+        return self._format_search_response(query, matches)
+
+    async def _handle_llm_summary(self, user_query: str, params: dict, txs: list) -> str:
+        from app.services.llm_service import llm_service
+        
+        # Prepare Data Context for LLM
         summ = Analytics.calculate_summary(txs)
+        cats = Analytics.calculate_category_breakdown(txs)
+        top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        data_context = f"""
+        Total Income: {summ['total_income']}
+        Total Expense: {summ['total_expense']}
+        Net Balance: {summ['net_balance']}
+        
+        Top Spending Categories:
+        {json.dumps(dict(top_cats), indent=2)}
+        """
+        
+        category_filter = params.get("category")
+        if category_filter:
+            # Refine context if user asked for specific category
+            cat_total = cats.get(category_filter, 0)
+            data_context += f"\nSpecific Category '{category_filter}': {cat_total}"
 
-        # Search query (Prioritized)
-        search_response = self._handle_search_query(resolved_message)
-        if search_response:
-            return search_response
+        system_prompt = """You are a financial analyst.
+        Generate a concise, markdown-formatted summary based on the provided data.
+        Use emojis. Use tables for metrics.
+        The user asked for: "{user_query}"
+        """
         
-        # Summary requests
-        summary_keywords = ["summarize", "overall summary", "full report", "detailed analysis", "snapshot", "how am i doing", "account overview"]
-        if any(kw in message_lower for kw in summary_keywords) and len(message.split()) < 5:
-            cats = Analytics.calculate_category_breakdown(txs)
-            top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
-            cats_text = "\n".join([f"| {c} | {symbol}{a:,.2f} |" for c, a in top_cats])
-            
-            return f"""## 📊 Financial Summary
+        return llm_service.generate_response(system_prompt, user_query, data_context)
 
-### 💰 Key Metrics
-| Metric | Amount |
-|--------|--------|
-| **Net Balance** | **{symbol}{summ['net_balance']:,.2f}** |
-| Total Income | +{symbol}{summ['total_income']:,.2f} |
-| Total Expenses | -{symbol}{summ['total_expense']:,.2f} |
-
-### 🔍 Top Categories
-| Category | Amount |
-|----------|--------|
-{cats_text}
-
-### 💡 Insight
-Your top spending category is **{top_cats[0][0]}**, accounting for significant outflow.
-"""
+    async def _handle_llm_insights(self, user_query: str, params: dict, txs: list) -> str:
+        from app.services.llm_service import llm_service
         
-        # Income questions
-        if "income" in message_lower or "earn" in message_lower or "credit" in message_lower:
-            credits = [t for t in txs if t.type == "credit"]
-            return f"## 💰 Income Analysis\n\n### 📊 Summary\n**Total Income:** {symbol}{summ['total_income']:,.2f}\n\n### 🔍 Details\n| Metric | Value |\n|--------|-------|\n| **Count** | {len(credits)} |\n| **Average** | {symbol}{summ['total_income']/len(credits):,.2f} |"
+        # Basic analytics
+        trends = Analytics.calculate_monthly_trends(txs)
+        highest_debit = max([t for t in txs if t.type == "debit"], key=lambda x: x.amount, default=None)
         
-        # Expense questions
-        if "expense" in message_lower or "spend" in message_lower or "spent" in message_lower:
-            cats = Analytics.calculate_category_breakdown(txs)
-            top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
-            cats_text = "\n".join([f"| {c} | {symbol}{a:,.2f} |" for c, a in top_cats])
-            return f"## 💸 Expense Analysis\n\n### 📊 Summary\n**Total Spending:** {symbol}{summ['total_expense']:,.2f}\n\n### 🔍 Details\n| Category | Amount |\n|----------|--------|\n{cats_text}"
+        data_context = f"""
+        Monthly Trends: {json.dumps(trends, indent=2)}
+        Highest Single Expense: {highest_debit.amount if highest_debit else 0} ({highest_debit.description if highest_debit else 'N/A'})
+        """
         
-        # Balance
-        if "balance" in message_lower or "net" in message_lower:
-            status = "✅ Positive" if summ['net_balance'] >= 0 else "⚠️ Negative"
-            return f"## 💵 Net Balance Status\n\n### 📊 Current Position\n# **{symbol}{summ['net_balance']:,.2f}**\n\n### 💡 Insight\nStatus: {status}\nMaintain a positive balance to ensure financial stability."
+        system_prompt = "You provide financial insights. Be brief and data-driven."
+        return llm_service.generate_response(system_prompt, user_query, data_context)
         
-        # Category query
-        cat_response = self._handle_category_query(message)
-        if cat_response:
-            return cat_response
+    async def _handle_general_chat(self, user_query: str, txs: list) -> str:
+        from app.services.llm_service import llm_service
         
-
+        # Just give basic context
+        summ = Analytics.calculate_summary(txs)
+        data_context = f"User Balance: {summ['net_balance']}"
         
-        # Highest transaction
-        if "highest" in message_lower or "largest" in message_lower or "biggest" in message_lower:
-            highest_credit = max([t for t in txs if t.type == "credit"], key=lambda x: x.amount, default=None)
-            highest_debit = max([t for t in txs if t.type == "debit"], key=lambda x: x.amount, default=None)
-            response = "## 🔝 Largest Transactions\n\n### 🔍 Details\n"
-            if highest_credit:
-                response += f"**Highest Income:** +{symbol}{highest_credit.amount:,.0f}\n> {highest_credit.description[:50]} — *{highest_credit.date.strftime('%b %d, %Y')}*\n\n"
-            if highest_debit:
-                response += f"**Highest Spending:** -{symbol}{highest_debit.amount:,.0f}\n> {highest_debit.description[:50]} — *{highest_debit.date.strftime('%b %d, %Y')}*"
-            return response
-        
-        # Trends
-        if "trend" in message_lower or "month" in message_lower:
-            trends = Analytics.calculate_monthly_trends(txs)
-            response = "## 📈 Monthly Trends\n\n### 📊 Data Table\n| Month | Income | Expenses | Net |\n|-------|--------|----------|-----|\n"
-            for month, data in sorted(trends.items()):
-                net = data['income'] - data['expense']
-                response += f"| **{month}** | {symbol}{data['income']:,.0f} | {symbol}{data['expense']:,.0f} | **{symbol}{net:,.0f}** |\n"
-            
-            response += "\n### 💡 Insight\nMonitor these trends to identify seasonal spending or income variances."
-            return response
-        
-        # Default: brief summary
-        return f"""## 👋 Hello
-        
-### 📊 Quick Snapshot
-• **Net Balance:** {symbol}{summ['net_balance']:,.2f}
-• **Total Transactions:** {len(txs)}
-
-### 💡 Suggestions
-Try asking:
-• "Summarize my spending"
-• "What is my income trends?"
-• "Show largest transactions"
-"""
+        system_prompt = "You are a helpful assistant for a financial dashboard. Answer generally. Do not make up transaction data."
+        return llm_service.generate_response(system_prompt, user_query, data_context)
 
 
 # Singleton instance
 rag_agent = RagAgent()
-

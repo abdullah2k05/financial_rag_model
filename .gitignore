@@ -1,21 +1,40 @@
-# Environment variables
+# =========================
+# Environment & Secrets
+# =========================
 .env
+.env.*
 env/
 venv/
 .venv/
 
+# =========================
 # Python
+# =========================
 __pycache__/
 *.py[cod]
 *$py.class
-*.db
-finance.db
 
-# Node
+# Databases / Generated Storage
+*.db
+*.sqlite3
+backend/chroma_db/
+
+# =========================
+# Generated Outputs / Logs
+# =========================
+*.log
+*.txt
+*.json
+
+# =========================
+# Node / Frontend
+# =========================
 node_modules/
 dist/
-.DS_Store
 
-# IDE
+# =========================
+# OS / IDE
+# =========================
+.DS_Store
 .vscode/
 .idea/
