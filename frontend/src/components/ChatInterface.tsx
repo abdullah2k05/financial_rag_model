@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { User, Bot, Sparkles, ArrowUp } from 'lucide-react';
+import { User, Bot, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
@@ -15,13 +15,27 @@ interface ChatInterfaceProps {
 export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
+
+  const handleScroll = () => {
+    if (containerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      const isBottom = scrollHeight - scrollTop - clientHeight < 100;
+      setShowScrollButton(!isBottom);
+    }
+  };
+
+  const scrollToBottom = () => {
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -57,7 +71,11 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     <div className="flex flex-col h-[calc(100vh-2rem)] bg-background relative">
       
       {/* Messages Area - Centered Column */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
+      <div 
+        ref={containerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto custom-scrollbar w-full"
+      >
         <div className="max-w-3xl mx-auto w-full px-4 pt-8 pb-32 min-h-full flex flex-col">
           
           {messages.length === 0 ? (
@@ -177,6 +195,19 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
               )}
               <div ref={scrollRef} />
             </div>
+          )}
+          
+          {/* Scroll to Bottom Button */}
+          {showScrollButton && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={scrollToBottom}
+              className="fixed bottom-32 left-1/2 -translate-x-1/2 z-50 p-2 bg-primary/90 text-primary-foreground rounded-full shadow-lg hover:bg-primary transition-colors backdrop-blur-sm border border-primary/20"
+            >
+              <ArrowDown className="w-5 h-5" />
+            </motion.button>
           )}
         </div>
       </div>
