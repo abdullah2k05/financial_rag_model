@@ -25,6 +25,11 @@ interface Transaction {
   currency?: string; 
 }
 
+export interface Message {
+  role: 'user' | 'bot';
+  content: string;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isUploading, setIsUploading] = useState(false);
@@ -34,6 +39,7 @@ function App() {
 
   // Data states
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [currency, setCurrency] = useState<string>("USD"); // Default currency
   const [summary, setSummary] = useState({
     total_income: 0,
@@ -89,6 +95,7 @@ function App() {
       const emptySummary = await res.json();
       setSummary(emptySummary);
       setTransactions([]);
+      setMessages([]);
       setSpending({});
       setTrends({});
       setCurrency('USD');
@@ -243,7 +250,7 @@ function App() {
                 exit={{ opacity: 0 }}
                 className="flex-1 h-full -m-8" // Negative margin to counteract main padding, making it full bleed
               >
-                <ChatInterface />
+                <ChatInterface messages={messages} setMessages={setMessages} />
               </motion.div>
             )}
 
@@ -340,30 +347,30 @@ function SnapshotCard({ transactions }: { transactions: Transaction[] }) {
             remarkPlugins={[remarkGfm]}
             components={{
               // Typography
-              h1: ({ node, ...props }) => <h1 className="text-3xl font-black mb-8 pb-4 border-b border-border/30 bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent" {...props} />,
-              h2: ({ node, ...props }) => <h2 className="text-2xl font-bold mb-6 mt-10 first:mt-0 flex items-center gap-3 text-foreground" {...props} />,
-              h3: ({ node, ...props }) => <h3 className="text-lg font-semibold mb-3 mt-6 text-foreground/80" {...props} />,
-              p: ({ node, ...props }) => <p className="mb-4 leading-relaxed text-muted-foreground" {...props} />,
+              h1: ({ ...props }) => <h1 className="text-3xl font-black mb-8 pb-4 border-b border-border/30 bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent" {...props} />,
+              h2: ({ ...props }) => <h2 className="text-2xl font-bold mb-6 mt-10 first:mt-0 flex items-center gap-3 text-foreground" {...props} />,
+              h3: ({ ...props }) => <h3 className="text-lg font-semibold mb-3 mt-6 text-foreground/80" {...props} />,
+              p: ({ ...props }) => <p className="mb-4 leading-relaxed text-muted-foreground" {...props} />,
               
               // Lists
-              ul: ({ node, ...props }) => <ul className="space-y-3 mb-6" {...props} />,
-              li: ({ node, ...props }) => <li className="flex items-start gap-2 text-foreground/90 leading-relaxed pl-1" {...props} />,
+              ul: ({ ...props }) => <ul className="space-y-3 mb-6" {...props} />,
+              li: ({ ...props }) => <li className="flex items-start gap-2 text-foreground/90 leading-relaxed pl-1" {...props} />,
               
               // Tables
-              table: ({ node, ...props }) => (
+              table: ({ ...props }) => (
                 <div className="overflow-hidden my-8 rounded-2xl border border-border/40 shadow-sm bg-card/40">
                   <table className="w-full text-sm text-left" {...props} />
                 </div>
               ),
-              thead: ({ node, ...props }) => <thead className="bg-muted/30 text-muted-foreground/80 uppercase text-[10px] font-bold tracking-widest border-b border-border/40" {...props} />,
-              tr: ({ node, ...props }) => <tr className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors group/row" {...props} />,
-              th: ({ node, ...props }) => <th className="px-6 py-4 font-medium" {...props} />,
-              td: ({ node, ...props }) => <td className="px-6 py-4 align-top text-foreground/80 group-hover/row:text-foreground transition-colors" {...props} />,
+              thead: ({ ...props }) => <thead className="bg-muted/30 text-muted-foreground/80 uppercase text-[10px] font-bold tracking-widest border-b border-border/40" {...props} />,
+              tr: ({ ...props }) => <tr className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors group/row" {...props} />,
+              th: ({ ...props }) => <th className="px-6 py-4 font-medium" {...props} />,
+              td: ({ ...props }) => <td className="px-6 py-4 align-top text-foreground/80 group-hover/row:text-foreground transition-colors" {...props} />,
               
               // Elements
-              blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary/30 bg-primary/5 pl-6 py-4 my-6 italic text-muted-foreground rounded-r-xl" {...props} />,
-              strong: ({ node, ...props }) => <strong className="font-bold text-foreground" {...props} />,
-              hr: ({ node, ...props }) => <hr className="my-8 border-border/40" {...props} />,
+              blockquote: ({ ...props }) => <blockquote className="border-l-4 border-primary/30 bg-primary/5 pl-6 py-4 my-6 italic text-muted-foreground rounded-r-xl" {...props} />,
+              strong: ({ ...props }) => <strong className="font-bold text-foreground" {...props} />,
+              hr: ({ ...props }) => <hr className="my-8 border-border/40" {...props} />,
             }}
           >
             {content}

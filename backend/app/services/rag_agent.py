@@ -86,8 +86,8 @@ class RagAgent:
         date_range = f"{date_from.strftime('%b %d, %Y')} → {date_to.strftime('%b %d, %Y')}" if date_from else "N/A"
         
         # Transaction Analysis
-        debits = [t for t in txs if t.type == "debit"]
-        credits = [t for t in txs if t.type == "credit"]
+        debits = [t for t in txs if t.type.lower() == "debit"]
+        credits = [t for t in txs if t.type.lower() == "credit"]
         
         highest_debit = max(debits, key=lambda x: x.amount, default=None)
         
@@ -209,19 +209,19 @@ Total Spending
     def _format_search_response(self, keyword: str, matches: list) -> str:
         """Structured, clear answer format."""
         symbol = self._get_active_currency()
-        income = sum(t.amount for t in matches if t.type == "credit")
-        outflow = sum(t.amount for t in matches if t.type == "debit")
+        income = sum(t.amount for t in matches if t.type.lower() == "credit")
+        outflow = sum(t.amount for t in matches if t.type.lower() == "debit")
         
         res = f"## 🔍 Result: {keyword}\n\n"
         res += f"| Direction | Total Sum | Count |\n"
         res += f"| :--- | :--- | :--- |\n"
-        res += f"| **Sent** | -{symbol}{outflow:,.2f} | {len([t for t in matches if t.type == 'debit'])} |\n"
-        res += f"| **Received** | +{symbol}{income:,.2f} | {len([t for t in matches if t.type == 'credit'])} |\n\n"
+        res += f"| **Sent** | -{symbol}{outflow:,.2f} | {len([t for t in matches if t.type.lower() == 'debit'])} |\n"
+        res += f"| **Received** | +{symbol}{income:,.2f} | {len([t for t in matches if t.type.lower() == 'credit'])} |\n\n"
         
         res += "### 📝 Details\n"
         res += "| Date | Amount | Description |\n| :--- | :--- | :--- |\n"
         for t in matches[:10]:
-            sign = "+" if t.type == "credit" else "-"
+            sign = "+" if t.type.lower() == "credit" else "-"
             res += f"| {t.date.strftime('%d %b')} | **{sign}{symbol}{t.amount:,.0f}** | {t.description[:25]} |\n"
         return res
 
@@ -229,9 +229,11 @@ Total Spending
     # CONTEXT 3: FINANCIAL_AI_PAGE - Chat (LLM ENHANCED)
     # ==========================================
     
-    async def chat(self, message: str, chat_history: List = [], context: str = "FINANCIAL_AI_PAGE") -> str:
+    async def chat(self, message: str, chat_history: Optional[List] = None, context: str = "FINANCIAL_AI_PAGE") -> str:
         """Process user message using Grounded RAG (Deterministic Analytics + Vector Retrieval)."""
-
+        if chat_history is None:
+            chat_history = []
+            
         from app.services.llm_service import llm_service
         from app.services.vector_store import vector_store
 
@@ -242,46 +244,77 @@ Total Spending
             return self.get_transactions_snapshot()
 
         # FINANCIAL_AI_PAGE - Interactive grounded chat
-        txs = storage.get_all_transactions()
-        if not txs:
-            return "📊 **No transaction data found.**\n\nPlease upload a bank statement to begin analysis."
-
         try:
-            # 1. Deterministic Analytics (Authoritative Truth)
-            # These values are computed by our python logic, not the LLM.
+            print(f"[RagAgent] Chat session started. Context: {context}")
+            # 1. Deterministic Analytics
+            print("[RagAgent] Computing analytics...")
+            txs = storage.get_all_transactions()
+            if not txs:
+                return "📊 **No transaction data found.**\nPlease upload a bank statement to begin analysis."
+                
             summ = Analytics.calculate_summary(txs)
             cats = Analytics.calculate_category_breakdown(txs)
             top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
             symbol = self._get_active_currency()
-            # 2. Vector Retrieval (Granular Transaction Details)
-            # First, classify intent to get keywords for better search
-            from app.services.llm_service import llm_service
-            intent_data = llm_service.classify_intent(message, [])
+            
+            # 2. Vector Retrieval
+            print(f"[RagAgent] Classifying intent (History: {len(chat_history)} turns)...")
+            try:
+                intent_data = llm_service.classify_intent(message, chat_history)
+                if not isinstance(intent_data, dict):
+                    print(f"[RagAgent] Warning: classify_intent returned non-dict: {type(intent_data)}")
+                    intent_data = {"intent": "CHAT", "parameters": {}}
+            except Exception as ie:
+                print(f"[RagAgent] Intent classification crashed: {ie}")
+                intent_data = {"intent": "CHAT", "parameters": {}}
+                
             intent = intent_data.get("intent", "CHAT")
-            keywords = intent_data.get("parameters", {}).get("keywords", [])
-            category = intent_data.get("parameters", {}).get("category", "")
+            params = intent_data.get("parameters", {})
+            keywords = params.get("keywords", [])
+            category = params.get("category", "")
+            
+            print(f"[RagAgent] Intent: {intent}, Keywords: {keywords}, Category: {category}")
+            
             search_query = message
-            if keywords:
-                search_query = " ".join(keywords)
 
-            # For queries requiring exact sums, compute in Python to avoid LLM errors
             msg_lower = message.lower()
-            is_sum_query = any(word in msg_lower for word in ["how much", "total", "sum", "amount", "spent", "received", "sent"])
-            if intent == "SUMMARY" and category and category in cats:
-                total = cats[category]
-                return f"## Spending Analysis: {category.title()}\n\n**Total Amount**: {symbol}{total:,.2f}"
-            elif (intent == "SEARCH" and keywords) or is_sum_query:
-                # Find transactions matching keywords and compute sums
-                matching_txs = []
-                for tx in txs:
-                    desc_lower = tx.description.lower()
-                    if any(kw.lower() in desc_lower for kw in keywords):
-                        matching_txs.append(tx)
+            is_sum_query = any(word in msg_lower for word in ["how much", "total", "sum", "amount", "spent", "received", "sent", "paid"])
+            
+            if intent == "SUMMARY":
+                if category and category in cats:
+                    print(f"[RagAgent] Short-circuit: Summary for {category}")
+                    total = cats[category]
+                    return f"## Spending Analysis: {category.title()}\n\n**Total Amount**: {symbol}{total:,.2f}"
+                elif not category and any(word in msg_lower for word in ["total", "summary", "spending", "income", "balance"]):
+                    print(f"[RagAgent] Short-circuit: Global Summary")
+                    if "income" in msg_lower or "received" in msg_lower:
+                         return f"## Financial Summary: Total Income\n\n**Total Received**: {symbol}{summ['total_income']:,.2f}\n**Transactions**: {len([t for t in txs if t.type.lower() == 'credit'])}"
+                    elif "balance" in msg_lower or "net" in msg_lower:
+                         return f"## Financial Summary: Net Position\n\n**Income**: {symbol}{summ['total_income']:,.2f}\n**Spending**: {symbol}{summ['total_expense']:,.2f}\n**Net Balance**: {symbol}{summ['net_balance']:,.2f}"
+                    else:
+                         return f"## Financial Summary: Total Spending\n\n**Total Spent**: {symbol}{summ['total_expense']:,.2f}\n**Transactions**: {len([t for t in txs if t.type.lower() == 'debit'])}"
+            
+            elif (intent == "SEARCH" and keywords) or (is_sum_query and keywords):
+                print(f"[RagAgent] Running Python-based transaction match...")
+                filler_words = {"account", "named", "the", "to", "for", "named", "transaction", "payment", "sent", "received", "all", "show", "of", "me", "with", "spend", "spending", "cost", "amount", "total", "sum", "how", "much", "did", "i", "pay"}
+                refined_keywords = [kw for kw in keywords if kw.lower() not in filler_words and len(kw) > 1]
+                active_keywords = refined_keywords if refined_keywords else keywords
+                
+                import re
+                def tx_matches(tx_desc, kws, strict=False):
+                    if strict:
+                        return all(re.search(rf'\b{re.escape(kw)}\b', tx_desc, re.IGNORECASE) for kw in kws)
+                    return any(re.search(rf'\b{re.escape(kw)}\b', tx_desc, re.IGNORECASE) for kw in kws)
+
+                strict_matches = [tx for tx in txs if tx_matches(tx.description, active_keywords, strict=True)]
+                matching_txs = strict_matches if strict_matches else [tx for tx in txs if tx_matches(tx.description, active_keywords, strict=False)]
+                
                 if matching_txs:
-                    sent = sum(tx.amount for tx in matching_txs if tx.type == "debit")
-                    received = sum(tx.amount for tx in matching_txs if tx.type == "credit")
+                    print(f"[RagAgent] Found {len(matching_txs)} matching transactions")
+                    sent = sum(tx.amount for tx in matching_txs if tx.type.lower() == "debit")
+                    received = sum(tx.amount for tx in matching_txs if tx.type.lower() == "credit")
                     count = len(matching_txs)
-                    response = f"## Transaction Analysis: {' '.join(keywords).title()}\n\n"
+                    response = f"## Transaction Analysis: {' '.join(active_keywords).title()}\n\n"
                     response += f"### Financial Summary\n"
                     response += f"| Metric | Amount |\n"
                     response += f"|--------|--------|\n"
@@ -292,28 +325,24 @@ Total Spending
                     response += f"### Transaction Details\n"
                     response += f"| Date | Amount | Description |\n"
                     response += f"|------|--------|-------------|\n"
-                    for tx in sorted(matching_txs, key=lambda x: x.date, reverse=True)[:20]:  # Show up to 20, sorted by date desc
-                        sign = "-" if tx.type == "debit" else "+"
-                        direction = "Sent" if tx.type == "debit" else "Received"
+                    for tx in sorted(matching_txs, key=lambda x: x.date, reverse=True)[:20]:
+                        sign = "-" if tx.type.lower() == "debit" else "+"
+                        direction = "Sent" if tx.type.lower() == "debit" else "Received"
                         response += f"| {tx.date.strftime('%b %d, %Y')} | **{direction} {symbol}{tx.amount:,.0f}** | {tx.description[:50]} |\n"
+                    
+                    if count > 20:
+                        response += f"\n\n> [!NOTE]\n> Showing the 20 most recent transactions out of {count} total matching records."
                     return response
 
-            # Include category details if relevant
+            # Include category and merchant details if relevant
+            merchants = Analytics.calculate_top_merchants(txs, limit=10)
+            merch_details = f"- **Top Merchants**: {', '.join([f'{m[0]}: {symbol}{m[1]:,.2f}' for m in [(m['name'], m['value']) for m in merchants]])}"
+            
             cat_details = ""
-            if intent == "SUMMARY" or category:
-                cat_details = f"- **Category Breakdown**: {', '.join([f'{c}: {symbol}{v:,.2f}' for c, v in top_cats])}"
+            if intent == "SUMMARY" or category or True: # Always include some breakdown
+                cat_details = f"- **Top Categories**: {', '.join([f'{c}: {symbol}{v:,.2f}' for c, v in top_cats])}"
                 if category and category in cats:
-                    cat_details += f"\n- **{category} Spending**: {symbol}{cats[category]:,.2f}"
-
-            # If specific category query, compute exact sum from transactions
-            specific_sum = None
-            if category and category in cats:
-                specific_sum = cats[category]
-            elif intent == "SEARCH" and keywords:
-                # For search queries, sum the amounts from retrieved chunks
-                # But chunks are retrieved after, so perhaps sum all matching category or description
-                # For now, if category detected, use cats[category]
-                pass
+                    cat_details += f"\n- **{category} Specific Spending**: {symbol}{cats[category]:,.2f}"
 
             authoritative_context = f"""
 ### AUTHORITATIVE FINANCIAL SUMMARY (READ-ONLY TRUTH)
@@ -321,38 +350,44 @@ Total Spending
 - **Total Spending**: {symbol}{summ['total_expense']:,.2f}
 - **Net Balance**: {symbol}{summ['net_balance']:,.2f}
 {cat_details}
+{merch_details}
 """
-            # Find the most relevant lines from the CSV
+            from app.services.vector_store import vector_store
             chunks = vector_store.search(search_query, k=10)
             retrieved_context = "\n".join([f"• {doc.page_content}" for doc in chunks])
 
-            # 3. Construct Grounded System Prompt (Structured & Clear Formatting)
             system_prompt = f"""You are a specialized Financial Data Analyst.
 Provide clear, structured answers with proper formatting and currency symbols.
+
+STRICT CALCULATION RULES:
+- NEVER perform your own additions, subtractions, or percentages.
+- DO NOT sum the 'RETRIEVED TRANSACTIONS' provided below; they are only snippets for context.
+- Use ONLY the exact figures from 'AUTHORITATIVE DATA'. 
+- If the user asks for a sum or total that is NOT in 'AUTHORITATIVE DATA', state that you cannot calculate it precisely and offer to find the transactions instead.
 
 PROFESSIONAL FORMATTING GUIDELINES:
 - Structure responses with clear headings and sections
 - Use tables for summaries and detailed lists
 - Bold only key amounts and totals
-- ALWAYS use the currency symbol ({symbol}) for ALL monetary values - never use $ or other symbols
-- Present sent/received transactions clearly differentiated
-- Show transaction counts and net flows where applicable
+- ALWAYS use the currency symbol ({symbol}) for ALL monetary values
 - Maintain concise, informative language
-- IMPORTANT: Use only the exact figures from AUTHORITATIVE DATA - do not calculate or estimate
 
 ### AUTHORITATIVE DATA
 {authoritative_context.strip()}
 
-### RETRIEVED TRANSACTIONS
+### RETRIEVED TRANSACTIONS (SAMPLES ONLY - DO NOT USE FOR MATH)
 {retrieved_context}
 """
-
-            # 4. Single-Call Generation
-            response = llm_service.generate_response(system_prompt, message, "Grounding Context Provided in System Prompt")
-            return response
+            print(f"[RagAgent] Calling LLM generate_response...")
+            try:
+                response = llm_service.generate_response(system_prompt, message, "Financial context provided", history=chat_history)
+                return response
+            except Exception as ge:
+                print(f"[RagAgent] LLM generation crashed: {ge}")
+                return "I'm sorry, I'm having trouble connecting to the AI service. The data is safe, but I can't generate a text response right now."
 
         except Exception as e:
-            print(f"[RagAgent] Error in RAG loop: {e}")
+            print(f"[ERROR] RagAgent loop failed: {repr(e)}")
             import traceback
             traceback.print_exc()
             return "I encountered an error processing your financial query. Please try again."

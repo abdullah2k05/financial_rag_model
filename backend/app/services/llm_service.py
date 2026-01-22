@@ -26,16 +26,16 @@ class LLMService:
         Your job is to classify the user's intent and extract relevant parameters.
         
         INTENTS:
-        1. SEARCH: User wants to find specific transactions (by merchant, person, exact amount, or date). 
-           - Examples: "Show walmart", "payments to John", "spent at starbucks", "transaction of $50".
-           - Extract 'keywords' (list of strict search terms).
-        2. SUMMARY: User wants an overview of spending, income, or specific category totals.
-           - Examples: "Summarize my spending", "Total income", "How much did I spend on food?", "weekly report".
+        1. SEARCH: User wants to find specific transactions or aggregate sums for a specific entity. 
+           - Examples: "Show walmart", "payments to John", "spent at starbucks", "transaction of $50", "how much sent to account X".
+           - Extract 'keywords' (list of strict search terms: entities, names, account titles, merchants).
+        2. SUMMARY: User wants an overview of general spending or category totals.
+           - Examples: "Summarize my spending", "Total income", "How much did I spend on food?".
            - Extract 'category' (optional) and 'time_period' (optional).
-        3. INSIGHTS: User asks for greatest/lowest/trends/analysis.
-           - Examples: "Highest transaction", "Spending trend", "Where do I spend most?".
-        4. CHAT: General greetings, thanks, or non-financial questions.
-           - Examples: "Hello", "Thanks", "What can defined do?".
+        3. INSIGHTS: Analysis and trends.
+        4. CHAT: General conversation.
+
+        IMPORTANT: If user asks "how much", "total", or "sum" regarding a PERSON, ACCOUNT, or MERCHANT, classify as SEARCH and extract the name as a keyword.
 
         OUTPUT JSON FORMAT:
         {
@@ -56,7 +56,8 @@ class LLMService:
         
         # Add limited history context (last 2 turns) to resolve references
         for role, content in history[-2:]:
-             messages.append({"role": role, "content": content})
+             api_role = "assistant" if role == "bot" else role
+             messages.append({"role": api_role, "content": content})
              
         messages.append({"role": "user", "content": message})
 
@@ -83,7 +84,8 @@ class LLMService:
             
             # Inject history
             for role, content in history:
-                messages.append({"role": role, "content": content})
+                api_role = "assistant" if role == "bot" else role
+                messages.append({"role": api_role, "content": content})
                 
             messages.append({"role": "user", "content": f"User Query: {user_query}\n\nData Context:\n{data_context}"})
             
@@ -92,7 +94,7 @@ class LLMService:
                 messages=messages,
                 temperature=0.6, # User requested 0.6
                 top_p=0.95,      # User requested 0.95
-                max_completion_tokens=4096, # User requested 4096
+                max_tokens=4096, # Use max_tokens for compatibility
             )
             return response.choices[0].message.content
         except Exception as e:

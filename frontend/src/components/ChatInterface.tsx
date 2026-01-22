@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useRef, useEffect } from 'react';
 import { User, Bot, Sparkles, ArrowUp } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -6,13 +5,14 @@ import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-interface Message {
-  role: 'user' | 'bot';
-  content: string;
+import type { Message } from '../App';
+
+interface ChatInterfaceProps {
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
-export function ChatInterface() {
-  const [messages, setMessages] = useState<Message[]>([]);
+export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -118,28 +118,28 @@ export function ChatInterface() {
                       <ReactMarkdown 
                         remarkPlugins={[remarkGfm]}
                         components={{
-                          p: ({ node, ...props }) => <p className="mb-4 last:mb-0 leading-relaxed text-foreground/90" {...props} />,
-                          ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2 text-foreground/90" {...props} />,
-                          ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-foreground/90" {...props} />,
-                          li: ({ node, ...props }) => <li className="pl-1" {...props} />,
-                          h1: ({ node, ...props }) => <h1 className="text-2xl font-bold text-foreground mb-4 mt-8 pb-2 border-b border-border/40" {...props} />,
-                          h2: ({ node, ...props }) => <h2 className="text-xl font-semibold text-foreground/95 mb-3 mt-6" {...props} />,
-                          h3: ({ node, ...props }) => <h3 className="text-lg font-medium text-foreground/90 mb-2 mt-4" {...props} />,
-                          table: ({ node, ...props }) => (
+                          p: ({ ...props }) => <p className="mb-4 last:mb-0 leading-relaxed text-foreground/90" {...props} />,
+                          ul: ({ ...props }) => <ul className="list-disc pl-5 mb-4 space-y-2 text-foreground/90" {...props} />,
+                          ol: ({ ...props }) => <ol className="list-decimal pl-5 mb-4 space-y-2 text-foreground/90" {...props} />,
+                          li: ({ ...props }) => <li className="pl-1" {...props} />,
+                          h1: ({ ...props }) => <h1 className="text-2xl font-bold text-foreground mb-4 mt-8 pb-2 border-b border-border/40" {...props} />,
+                          h2: ({ ...props }) => <h2 className="text-xl font-semibold text-foreground/95 mb-3 mt-6" {...props} />,
+                          h3: ({ ...props }) => <h3 className="text-lg font-medium text-foreground/90 mb-2 mt-4" {...props} />,
+                          table: ({ ...props }) => (
                             <div className="overflow-hidden my-6 rounded-xl border border-border/60 shadow-sm bg-card/30">
                               <table className="w-full text-sm text-left" {...props} />
                             </div>
                           ),
-                          thead: ({ node, ...props }) => <thead className="bg-secondary/50 text-muted-foreground uppercase text-xs font-semibold tracking-wider" {...props} />,
-                          tr: ({ node, ...props }) => <tr className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors" {...props} />,
-                          th: ({ node, ...props }) => <th className="px-6 py-4 font-medium" {...props} />,
-                          td: ({ node, ...props }) => <td className="px-6 py-4 align-top text-foreground/80" {...props} />,
-                          strong: ({ node, ...props }) => <strong className="font-bold text-foreground" {...props} />,
-                          a: ({ node, ...props }) => <a className="text-primary hover:underline font-medium underline-offset-4" target="_blank" rel="noopener noreferrer" {...props} />,
-                          blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-primary/40 bg-secondary/10 pl-5 py-3 my-4 italic text-muted-foreground rounded-r-lg" {...props} />,
-                          hr: ({ node, ...props }) => <hr className="my-8 border-border/60" {...props} />,
-                          pre: ({ node, ...props }) => <pre className="bg-secondary/40 p-4 rounded-xl overflow-x-auto my-4 text-xs border border-border/30" {...props} />,
-                          code: ({ node, inline, ...props }: any) => (
+                          thead: ({ ...props }) => <thead className="bg-secondary/50 text-muted-foreground uppercase text-xs font-semibold tracking-wider" {...props} />,
+                          tr: ({ ...props }) => <tr className="border-b border-border/40 last:border-0 hover:bg-muted/20 transition-colors" {...props} />,
+                          th: ({ ...props }) => <th className="px-6 py-4 font-medium" {...props} />,
+                          td: ({ ...props }) => <td className="px-6 py-4 align-top text-foreground/80" {...props} />,
+                          strong: ({ ...props }) => <strong className="font-bold text-foreground" {...props} />,
+                          a: ({ ...props }) => <a className="text-primary hover:underline font-medium underline-offset-4" target="_blank" rel="noopener noreferrer" {...props} />,
+                          blockquote: ({ ...props }) => <blockquote className="border-l-4 border-primary/40 bg-secondary/10 pl-5 py-3 my-4 italic text-muted-foreground rounded-r-lg" {...props} />,
+                          hr: ({ ...props }) => <hr className="my-8 border-border/60" {...props} />,
+                          pre: ({ ...props }) => <pre className="bg-secondary/40 p-4 rounded-xl overflow-x-auto my-4 text-xs border border-border/30" {...props} />,
+                          code: ({ inline, ...props }: { inline?: boolean, [key: string]: any }) => (
                             <code 
                               className={inline 
                                 ? "bg-secondary/60 px-1.5 py-0.5 rounded text-sm font-mono text-primary-foreground/90 bg-primary/10" 

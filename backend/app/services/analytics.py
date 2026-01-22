@@ -9,8 +9,8 @@ class Analytics:
         """
         Calculates high-level totals: income, expenses, and net balance.
         """
-        total_income = sum(t.amount for t in transactions if t.type == "credit")
-        total_expense = sum(t.amount for t in transactions if t.type == "debit")
+        total_income = sum(t.amount for t in transactions if t.type.lower() == "credit")
+        total_expense = sum(t.amount for t in transactions if t.type.lower() == "debit")
         net_balance = total_income - total_expense
         
         return {
@@ -27,7 +27,7 @@ class Analytics:
         """
         breakdown = defaultdict(float)
         for t in transactions:
-            if t.type == "debit": # Focus on spending
+            if t.type.lower() == "debit": # Focus on spending
                 breakdown[t.category or "Uncategorized"] += t.amount
                 
         # Round values
@@ -41,9 +41,9 @@ class Analytics:
         trends = defaultdict(lambda: {"income": 0.0, "expense": 0.0})
         for t in transactions:
             month_key = t.date.strftime("%Y-%m")
-            if t.type == "credit":
+            if t.type.lower() == "credit":
                 trends[month_key]["income"] += t.amount
-            elif t.type == "debit":
+            elif t.type.lower() == "debit":
                 trends[month_key]["expense"] += t.amount
                 
         # Round values
@@ -60,7 +60,7 @@ class Analytics:
         """
         merchants = defaultdict(float)
         for t in transactions:
-            if t.type == "debit":
+            if t.type.lower() == "debit":
                 # Basic cleaning of description to group similar merchants
                 # This could be improved with better NLP or regex
                 merchant = t.description.split('-')[0].strip()
