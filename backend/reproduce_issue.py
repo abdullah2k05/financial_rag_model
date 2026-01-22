@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 
 # Load environment variables (for OpenAI/OpenRouter key)
-load_dotenv(".env") 
+load_dotenv(".env", override=True) 
 
 # Mock Transaction class
 class MockTransaction:

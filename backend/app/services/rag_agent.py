@@ -230,139 +230,71 @@ Total Spending
     # ==========================================
     
     async def chat(self, message: str, chat_history: List = [], context: str = "FINANCIAL_AI_PAGE") -> str:
-        """Process user message using LLM for intent understanding."""
+        """Process user message using Grounded RAG (Deterministic Analytics + Vector Retrieval)."""
         from app.services.llm_service import llm_service
+        from app.services.vector_store import vector_store
         
-        # Handle non-chat contexts directly
+        # Handle non-chat contexts directly (JSON/Markdown snapshots)
         if context == "HOME_PAGE":
             return json.dumps(self.get_home_kpis())
         if context == "TRANSACTIONS_PAGE":
             return self.get_transactions_snapshot()
         
-        # FINANCIAL_AI_PAGE - Interactive chat
+        # FINANCIAL_AI_PAGE - Interactive grounded chat
         txs = storage.get_all_transactions()
         if not txs:
             return "📊 **No transaction data found.**\n\nPlease upload a bank statement to begin analysis."
 
         try:
-            # 1. Classify Intent
-            classification = llm_service.classify_intent(message, chat_history)
-            intent = classification.get("intent", "CHAT")
-            params = classification.get("parameters", {})
+            # 1. Deterministic Analytics (Authoritative Truth)
+            # These values are computed by our python logic, not the LLM.
+            summ = Analytics.calculate_summary(txs)
+            cats = Analytics.calculate_category_breakdown(txs)
+            top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
+            symbol = self._get_active_currency()
             
-            print(f"[RagAgent] Intent: {intent}, Params: {params}") # Debug log
+            authoritative_context = f"""
+### AUTHORITATIVE FINANCIAL SUMMARY (READ-ONLY TRUTH)
+- **Total Income**: {symbol}{summ['total_income']:,.2f}
+- **Total Spending**: {symbol}{summ['total_expense']:,.2f}
+- **Net Balance**: {symbol}{summ['net_balance']:,.2f}
+- **Top 5 Spending Categories**: {', '.join([f"{c}: {symbol}{v:,.0f}" for c, v in top_cats])}
+"""
 
-            # 2. Route based on Intent
-            if intent == "SEARCH":
-                return self._handle_llm_search(params, txs)
-            
-            elif intent == "SUMMARY":
-                return await self._handle_llm_summary(message, params, txs)
-            
-            elif intent == "INSIGHTS":
-                return await self._handle_llm_insights(message, params, txs)
-            
-            else: # CHAT or fallback
-                return await self._handle_general_chat(message, txs)
+            # 2. Vector Retrieval (Granular Transaction Details)
+            # Find the most relevant lines from the CSV
+            chunks = vector_store.search(message, k=10)
+            retrieved_context = "\n".join([f"• {doc.page_content}" for doc in chunks])
+
+            # 3. Construct Grounded System Prompt (EXTREME CONCISENESS)
+            system_prompt = f"""You are a specialized Financial Data Analyst. 
+Your goal is to provide **immediate, to-the-point answers**. Do not be wordy. 
+
+STRICT RULES:
+1. ANSWER-FIRST: Put the direct numerical answer or specific merchant name in the FIRST sentence.
+2. NO THINKING: Do NOT output any internal reasoning, thoughts, or <think> blocks. Provide ONLY the final answer.
+3. NO FLUFF: Omit introductory phrases like "Based on the data..." or "Looking at your transactions...".
+4. NO EXCERPTS: Do not repeat the entire 'RETRIEVED TRANSACTION CONTEXT' in your reply unless specifically asked for a list.
+4. AUTHORITY: Use the 'AUTHORITATIVE FINANCIAL SUMMARY' for totals.
+5. FORMATTING: Use bold for numbers and merchants. Keep responses under 2-3 sentences where possible.
+
+### DATA TRUTHS
+{authoritative_context if "summary" in message.lower() or "total" in message.lower() or "all" in message.lower() else "- High-level totals available if needed."}
+
+### TRANSACTION CLIPS
+{retrieved_context}
+"""
+
+            # 4. Single-Call Generation
+            # We pass the history if needed, but for now we focus on pure RAG grounding.
+            return llm_service.generate_response(system_prompt, message, "Grounding Context Provided in System Prompt")
 
         except Exception as e:
-            print(f"[RagAgent] Error in chat loop: {e}")
+            print(f"[RagAgent] Error in RAG loop: {e}")
             import traceback
             traceback.print_exc()
-            return "I encountered an error processing your request. Please try again."
+            return "I encountered an error processing your financial query. Please try again."
 
-    # --- Handlers ---
-
-    def _handle_llm_search(self, params: dict, txs: list) -> str:
-        keywords = params.get("keywords", [])
-        if not keywords:
-            # Fallback if no specific keywords extracted
-            return "Could you specify what transaction you are looking for?"
-            
-        # Combine keywords for a broad search first
-        query = " ".join(keywords).lower()
-        
-        # Smart Search Strategy
-        matches = []
-        # 1. Exact amount match (if any keyword is a number)
-        for k in keywords:
-            if str(k).replace('.','',1).isdigit():
-                amount = float(k)
-                matches.extend([t for t in txs if abs(t.amount - amount) < 0.1])
-        
-        # 2. Description match
-        if not matches:
-             matches = [t for t in txs if query in t.description.lower()]
-        
-        # 3. Individual keyword match (broad)
-        if not matches:
-            for k in keywords:
-                matches.extend([t for t in txs if str(k).lower() in t.description.lower()])
-        
-        # Deduplicate
-        unique_matches = {t.date.isoformat()+t.description: t for t in matches}.values()
-        matches = list(unique_matches)
-
-        if not matches:
-            return f"## 🔍 No Results Found\n\nI couldn't find any transactions matching **'{query}'**."
-
-        return self._format_search_response(query, matches)
-
-    async def _handle_llm_summary(self, user_query: str, params: dict, txs: list) -> str:
-        from app.services.llm_service import llm_service
-        
-        # Prepare Data Context for LLM
-        summ = Analytics.calculate_summary(txs)
-        cats = Analytics.calculate_category_breakdown(txs)
-        top_cats = sorted(cats.items(), key=lambda x: x[1], reverse=True)[:5]
-        
-        data_context = f"""
-        Total Income: {summ['total_income']}
-        Total Expense: {summ['total_expense']}
-        Net Balance: {summ['net_balance']}
-        
-        Top Spending Categories:
-        {json.dumps(dict(top_cats), indent=2)}
-        """
-        
-        category_filter = params.get("category")
-        if category_filter:
-            # Refine context if user asked for specific category
-            cat_total = cats.get(category_filter, 0)
-            data_context += f"\nSpecific Category '{category_filter}': {cat_total}"
-
-        system_prompt = """You are a financial analyst.
-        Generate a concise, markdown-formatted summary based on the provided data.
-        Use emojis. Use tables for metrics.
-        The user asked for: "{user_query}"
-        """
-        
-        return llm_service.generate_response(system_prompt, user_query, data_context)
-
-    async def _handle_llm_insights(self, user_query: str, params: dict, txs: list) -> str:
-        from app.services.llm_service import llm_service
-        
-        # Basic analytics
-        trends = Analytics.calculate_monthly_trends(txs)
-        highest_debit = max([t for t in txs if t.type == "debit"], key=lambda x: x.amount, default=None)
-        
-        data_context = f"""
-        Monthly Trends: {json.dumps(trends, indent=2)}
-        Highest Single Expense: {highest_debit.amount if highest_debit else 0} ({highest_debit.description if highest_debit else 'N/A'})
-        """
-        
-        system_prompt = "You provide financial insights. Be brief and data-driven."
-        return llm_service.generate_response(system_prompt, user_query, data_context)
-        
-    async def _handle_general_chat(self, user_query: str, txs: list) -> str:
-        from app.services.llm_service import llm_service
-        
-        # Just give basic context
-        summ = Analytics.calculate_summary(txs)
-        data_context = f"User Balance: {summ['net_balance']}"
-        
-        system_prompt = "You are a helpful assistant for a financial dashboard. Answer generally. Do not make up transaction data."
-        return llm_service.generate_response(system_prompt, user_query, data_context)
 
 
 # Singleton instance

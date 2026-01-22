@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api import upload, analytics, chat
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Bank Statement Analyzer API") # v2 rebuild
 

@@ -1,21 +1,22 @@
-from openai import OpenAI
+from groq import Groq
 import os
 from typing import Dict, Any, Optional
 import json
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 class LLMService:
     def __init__(self):
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
+        # Groq SDK automatically looks for GROQ_API_KEY in environment
+        self.api_key = os.getenv("GROQ_API_KEY")
         if not self.api_key:
-            print("[WARNING] OPENROUTER_API_KEY not found in environment variables.")
+            print("[WARNING] GROQ_API_KEY not found in environment variables.")
         
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=self.api_key,
-        )
-        # Using a reliable, lightweight model. 
-        # Fallback to meta-llama/llama-3.1-8b-instruct:free as it's widely available.
-        self.model = "meta-llama/llama-3.1-8b-instruct:free" 
+        self.client = Groq(api_key=self.api_key)
+        # Using the standard Groq ID for Qwen 2.5 32B
+        # (The user mentioned qwen3-32b, but qwen-2.5-32b is the correct ID for Groq Cloud)
+        self.model = "qwen/qwen3-32b" 
 
     def classify_intent(self, message: str, history: list) -> Dict[str, Any]:
         """
@@ -85,7 +86,9 @@ class LLMService:
                     {"role": "system", "content": system_context},
                     {"role": "user", "content": f"User Query: {user_query}\n\nData Context:\n{data_context}"}
                 ],
-                temperature=0.7,
+                temperature=0.6, # User requested 0.6
+                top_p=0.95,      # User requested 0.95
+                max_completion_tokens=4096, # User requested 4096
             )
             return response.choices[0].message.content
         except Exception as e:
