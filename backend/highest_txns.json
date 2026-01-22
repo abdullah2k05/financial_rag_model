@@ -1,0 +1,12 @@
+{
+  "highest_credit": {
+    "amount": 180000.0,
+    "description": "Raast P2P Fund transfer- - from MUHAMMAD ADNAN RAAST PYxxx01",
+    "date": "2025-12-01"
+  },
+  "highest_debit": {
+    "amount": 150000.0,
+    "description": "Raast P2P Fund transfer to MUHAMMAD ADNAN PK35MUCBxxx1520 AM",
+    "date": "2025-12-17"
+  }
+}
