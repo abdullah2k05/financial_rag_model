@@ -92,9 +92,10 @@ class LLMService:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=0.6, # User requested 0.6
-                top_p=0.95,      # User requested 0.95
-                max_tokens=4096, # Use max_tokens for compatibility
+                temperature=0.0, # Enforcing deterministic output
+                # top_p=1.0,     # Default
+                # seed=42,       # Optional: If supported by provider
+                max_tokens=4096,
             )
             return response.choices[0].message.content
         except Exception as e:

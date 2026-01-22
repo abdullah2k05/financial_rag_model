@@ -1,4 +1,4 @@
-import { LayoutDashboard, MessageSquare, Settings, PieChart, History, CreditCard } from 'lucide-react';
+import { LayoutDashboard, MessageSquare, Settings, PieChart, History, CreditCard, Github, Linkedin } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface SidebarProps {
@@ -17,11 +17,14 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
 
   return (
     <aside className="w-64 border-r border-border bg-card/50 backdrop-blur-xl h-screen sticky top-0 flex flex-col">
-      <div className="p-6 flex items-center gap-3">
-        <div className="bg-primary/10 p-2 rounded-xl border border-primary/20">
-          <CreditCard className="w-6 h-6 text-primary" />
+      <div className="p-6">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 p-2 rounded-xl border border-primary/20">
+            <CreditCard className="w-6 h-6 text-primary" />
+          </div>
+          <span className="font-bold text-xl tracking-tight">Money Lens</span>
         </div>
-        <span className="font-bold text-xl tracking-tight">Abdullah</span>
+        <p className="text-xs text-muted-foreground mt-2">Developed by Muhammad Abdullah</p>
       </div>
 
       <nav className="flex-1 px-4 space-y-2 mt-4">
@@ -47,7 +50,29 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
       </nav>
 
       <div className="p-6 border-t border-border mt-auto">
-        <div className="bg-secondary/50 rounded-2xl p-4 border border-border">
+      
+      
+        <div className="bg-secondary/50 rounded-2xl p-3 border border-border">
+          <div className="flex justify-center gap-3 mb-1">
+            <a 
+              href="https://github.com/abdullah2k05" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center p-1.5 rounded-lg bg-background/50 hover:bg-background text-muted-foreground hover:text-primary transition-all duration-200 border border-transparent hover:border-primary/20"
+              title="GitHub"
+            >
+              <Github className="w-3.5 h-3.5" />
+            </a>
+            <a 
+              href="https://www.linkedin.com/in/abdullah2k05" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center p-1.5 rounded-lg bg-background/50 hover:bg-background text-muted-foreground hover:text-primary transition-all duration-200 border border-transparent hover:border-primary/20"
+              title="LinkedIn"
+            >
+              <Linkedin className="w-3.5 h-3.5" />
+            </a>
+          </div>
           <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider mb-2">Pro Plan</p>
           <p className="text-xs mb-3">Get advanced spending insights with LLM agents.</p>
           <button className="w-full py-2 bg-foreground text-background text-xs font-bold rounded-lg hover:opacity-90 transition-opacity">
