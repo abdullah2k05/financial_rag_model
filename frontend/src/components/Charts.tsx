@@ -33,7 +33,7 @@ export function Charts({ spendingData, trendData, merchantData = [], currency }:
         <motion.div 
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-card border border-border rounded-[2.5rem] p-8 shadow-sm h-[420px] relative overflow-hidden group"
+          className="bg-card border border-border rounded-[2.5rem] p-6 md:p-8 shadow-sm h-[420px] relative overflow-hidden group"
         >
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
           <div className="flex items-center justify-between mb-8 relative z-10">
@@ -85,7 +85,7 @@ export function Charts({ spendingData, trendData, merchantData = [], currency }:
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="bg-card border border-border rounded-[2.5rem] p-8 shadow-sm h-[420px] group overflow-hidden"
+          className="bg-card border border-border rounded-[2.5rem] p-6 md:p-8 shadow-sm h-[420px] group overflow-hidden"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="space-y-1">

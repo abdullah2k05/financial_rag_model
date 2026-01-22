@@ -4,7 +4,7 @@ import { SummaryCards } from './components/SummaryCards';
 import { Charts } from './components/Charts';
 import { TransactionTable } from './components/TransactionTable';
 import { ChatInterface } from './components/ChatInterface';
-import { Upload, Loader2, AlertCircle, RefreshCcw, LayoutDashboard } from 'lucide-react';
+import { Upload, Loader2, AlertCircle, RefreshCcw, LayoutDashboard, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -32,6 +32,7 @@ export interface Message {
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,8 +158,61 @@ function App() {
   };
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground font-sans">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+    <div className="flex flex-col lg:flex-row min-h-screen bg-background text-foreground font-sans">
+      {/* Mobile Header */}
+      <div className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="flex items-center gap-2">
+           <div className="bg-primary/10 p-1.5 rounded-lg border border-primary/20">
+              <LayoutDashboard className="w-5 h-5 text-primary" />
+           </div>
+           <span className="font-bold text-lg tracking-tight">Money Lens</span>
+        </div>
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="p-2 hover:bg-secondary rounded-lg transition-colors"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Mobile Sidebar Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-black/60 z-[60] lg:hidden backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-[280px] z-[70] lg:hidden bg-background"
+            >
+              <Sidebar 
+                activeTab={activeTab} 
+                setActiveTab={setActiveTab} 
+                onClose={() => setIsMobileMenuOpen(false)} 
+              />
+              <button 
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="absolute top-4 right-4 p-2 bg-secondary/80 rounded-full border border-border"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop Sidebar */}
+      <div className="hidden lg:block">
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Header */}

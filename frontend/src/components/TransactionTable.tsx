@@ -185,7 +185,8 @@ export function TransactionTable({ transactions, currency, limit, pageSize }: Tr
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Desktop Table */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left">
           <thead>
             <tr className="bg-secondary/30 text-muted-foreground text-[10px] uppercase tracking-[0.2em]">
@@ -250,6 +251,51 @@ export function TransactionTable({ transactions, currency, limit, pageSize }: Tr
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="md:hidden divide-y divide-border">
+        {paginatedTransactions.length === 0 ? (
+          <div className="px-6 py-20 text-center">
+            <div className="flex flex-col items-center gap-2 opacity-40">
+              <Search className="w-8 h-8" />
+              <p className="font-bold text-sm">No transactions match your criteria</p>
+            </div>
+          </div>
+        ) : (
+          paginatedTransactions.map((t, i) => (
+            <div key={i} onClick={() => setSelectedTx(t)} className="p-4 active:bg-secondary/20 transition-colors cursor-pointer">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className={cn(
+                    "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border mt-1",
+                    t.type === 'credit' ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                  )}>
+                    {t.type === 'credit' ? <ArrowUpCircle className="w-5 h-5" /> : <ArrowDownCircle className="w-5 h-5" />}
+                  </div>
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-bold text-sm truncate">{t.description}</p>
+                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-tighter">
+                      {new Date(t.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                    <span className="inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black bg-secondary border border-border uppercase tracking-widest text-muted-foreground">
+                      {t.category || 'Uncategorized'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="text-right shrink-0">
+                  <div className={cn(
+                    "font-black text-sm",
+                    t.type === 'credit' ? "text-emerald-500" : "text-foreground"
+                  )}>
+                    {t.type === 'debit' ? '-' : '+'}{currency} {t.amount.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
       
       <AnimatePresence>

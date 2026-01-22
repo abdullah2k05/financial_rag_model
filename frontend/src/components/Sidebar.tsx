@@ -4,9 +4,10 @@ import { cn } from '../lib/utils';
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onClose?: () => void;
 }
 
-export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
+export function Sidebar({ activeTab, setActiveTab, onClose }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'chat', icon: MessageSquare, label: 'Financial AI' },
@@ -34,7 +35,10 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                setActiveTab(item.id);
+                if (onClose) onClose();
+              }}
               className={cn(
                 "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive 

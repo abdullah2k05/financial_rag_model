@@ -76,7 +76,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto custom-scrollbar w-full"
       >
-        <div className="max-w-3xl mx-auto w-full px-4 pt-8 pb-32 min-h-full flex flex-col">
+        <div className="max-w-3xl mx-auto w-full px-2 md:px-4 pt-8 pb-32 min-h-full flex flex-col">
           
           {messages.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center space-y-10 my-auto">
@@ -213,7 +213,7 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
       </div>
 
       {/* Input Area - Floating at bottom */}
-      <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background to-transparent pt-10 pb-8 px-4">
+      <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-background via-background to-transparent pt-10 pb-8 px-2 md:px-4">
         <div className="max-w-3xl mx-auto relative">
           <div className="relative flex items-end gap-2 bg-secondary/40 border border-border/50 rounded-[1.5rem] p-2 pl-4 shadow-lg backdrop-blur-md focus-within:bg-secondary/60 focus-within:border-primary/30 transition-all">
             <textarea
