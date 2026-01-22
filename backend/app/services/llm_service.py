@@ -14,9 +14,8 @@ class LLMService:
             print("[WARNING] GROQ_API_KEY not found in environment variables.")
         
         self.client = Groq(api_key=self.api_key)
-        # Using the standard Groq ID for Qwen 2.5 32B
-        # (The user mentioned qwen3-32b, but qwen-2.5-32b is the correct ID for Groq Cloud)
-        self.model = "qwen/qwen3-32b" 
+        # Using a supported Groq model
+        self.model = "llama-3.1-8b-instant" 
 
     def classify_intent(self, message: str, history: list) -> Dict[str, Any]:
         """
