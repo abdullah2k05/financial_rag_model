@@ -264,11 +264,13 @@ Total Spending
             if keywords:
                 search_query = " ".join(keywords)
 
-            # For direct queries that need exact sums, compute in Python
+            # For queries requiring exact sums, compute in Python to avoid LLM errors
+            msg_lower = message.lower()
+            is_sum_query = any(word in msg_lower for word in ["how much", "total", "sum", "amount", "spent", "received", "sent"])
             if intent == "SUMMARY" and category and category in cats:
                 total = cats[category]
                 return f"## Spending Analysis: {category.title()}\n\n**Total Amount**: {symbol}{total:,.2f}"
-            elif intent == "SEARCH" and keywords:
+            elif (intent == "SEARCH" and keywords) or is_sum_query:
                 # Find transactions matching keywords and compute sums
                 matching_txs = []
                 for tx in txs:
@@ -332,11 +334,11 @@ PROFESSIONAL FORMATTING GUIDELINES:
 - Structure responses with clear headings and sections
 - Use tables for summaries and detailed lists
 - Bold only key amounts and totals
-- Include currency symbols with all monetary values
+- ALWAYS use the currency symbol ({symbol}) for ALL monetary values - never use $ or other symbols
 - Present sent/received transactions clearly differentiated
 - Show transaction counts and net flows where applicable
 - Maintain concise, informative language
-- IMPORTANT: Use only the exact figures from AUTHORITATIVE DATA
+- IMPORTANT: Use only the exact figures from AUTHORITATIVE DATA - do not calculate or estimate
 
 ### AUTHORITATIVE DATA
 {authoritative_context.strip()}
