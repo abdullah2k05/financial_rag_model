@@ -9,8 +9,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-// const API_BASE = 'http://localhost:8000/api/v1';
-const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
+const API_BASE = `${import.meta.env.VITE_API_BASE}/api/v1`;
 
 
 // Utility function for class names
@@ -353,7 +353,7 @@ function SnapshotCard({ transactions }: { transactions: Transaction[] }) {
     const fetchSnapshot = async () => {
       setLoading(true);
       try {
-        const res = await fetch('https://abdullah2k05-money-lens-backend.hf.space/api/v1/chat', {
+        const res = await fetch(`${API_BASE}/chat`, {
 
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
