@@ -10,6 +10,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 
+if (!import.meta.env.VITE_API_BASE) {
+  throw new Error("VITE_API_BASE is not defined in environment variables");
+}
 const API_BASE = `${import.meta.env.VITE_API_BASE}/api/v1`;
 
 

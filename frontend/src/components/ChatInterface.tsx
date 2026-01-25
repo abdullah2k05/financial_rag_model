@@ -45,8 +45,11 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
+    const apiBase = import.meta.env.VITE_API_BASE;
+    if (!apiBase) throw new Error("API_BASE not defined");
+
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/v1/chat`, {
+      const response = await fetch(`${apiBase}/api/v1/chat`, {
 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
