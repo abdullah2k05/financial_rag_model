@@ -353,7 +353,8 @@ function SnapshotCard({ transactions }: { transactions: Transaction[] }) {
     const fetchSnapshot = async () => {
       setLoading(true);
       try {
-        const res = await fetch('http://localhost:8000/api/v1/chat/', {
+        const res = await fetch('https://abdullah2k05-money-lens-backend.hf.space/api/v1/chat', {
+
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
