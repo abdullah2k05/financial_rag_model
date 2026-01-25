@@ -9,7 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+// const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
+
 
 // Utility function for class names
 function cn(...inputs: (string | boolean | undefined | null)[]) {

@@ -1,11 +1,9 @@
 ---
 title: Money Lens Backend
-emoji: 🚀
-colorFrom: pink
-colorTo: pink
+emoji: 💰
+colorFrom: purple
+colorTo: blue
 sdk: docker
+app_file: app.py
 pinned: false
-license: mit
 ---
-
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
