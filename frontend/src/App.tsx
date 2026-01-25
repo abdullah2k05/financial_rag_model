@@ -8,12 +8,7 @@ import { Upload, Loader2, AlertCircle, RefreshCcw, LayoutDashboard, Menu, X } fr
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-
-
-if (!import.meta.env.VITE_API_BASE) {
-  throw new Error("VITE_API_BASE is not defined in environment variables");
-}
-const API_BASE = `${import.meta.env.VITE_API_BASE}/api/v1`;
+import { apiClient } from './lib/api';
 
 
 // Utility function for class names
@@ -35,6 +30,25 @@ export interface Message {
   content: string;
 }
 
+// API response types
+interface SummaryData {
+  total_income: number;
+  total_expense: number;
+  net_balance: number;
+  transaction_count: number;
+}
+
+interface UploadResponse {
+  transactions: Transaction[];
+  metadata?: {
+    currency?: string;
+  };
+}
+
+interface ChatResponse {
+  response: string;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -47,7 +61,7 @@ function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [currency, setCurrency] = useState<string>("USD"); // Default currency
-  const [summary, setSummary] = useState({
+  const [summary, setSummary] = useState<SummaryData>({
     total_income: 0,
     total_expense: 0,
     net_balance: 0,
@@ -60,20 +74,20 @@ function App() {
   const fetchData = async () => {
     setIsLoadingData(true);
     try {
-      const [summRes, spendRes, trendRes, merchRes, transRes] = await Promise.all([
-        fetch(`${API_BASE}/analytics/summary`),
-        fetch(`${API_BASE}/analytics/spending`),
-        fetch(`${API_BASE}/analytics/trends`),
-        fetch(`${API_BASE}/analytics/merchants`),
-        fetch(`${API_BASE}/analytics/transactions`)
+      // Use centralized API client for all requests
+      const [summData, spendData, trendData, merchData, transData] = await Promise.all([
+        apiClient.get<SummaryData>('/analytics/summary').catch(() => null),
+        apiClient.get<Record<string, number>>('/analytics/spending').catch(() => null),
+        apiClient.get<Record<string, { income: number; expense: number }>>('/analytics/trends').catch(() => null),
+        apiClient.get<{ name: string; value: number }[]>('/analytics/merchants').catch(() => null),
+        apiClient.get<Transaction[]>('/analytics/transactions').catch(() => null),
       ]);
 
-      if (summRes.ok) setSummary(await summRes.json());
-      if (spendRes.ok) setSpending(await spendRes.json());
-      if (trendRes.ok) setTrends(await trendRes.json());
-      if (merchRes.ok) setMerchants(await merchRes.json());
-      if (transRes.ok) {
-        const transData = await transRes.json();
+      if (summData) setSummary(summData);
+      if (spendData) setSpending(spendData);
+      if (trendData) setTrends(trendData);
+      if (merchData) setMerchants(merchData);
+      if (transData) {
         setTransactions(transData);
         if (transData.length > 0 && transData[0].currency) {
           setCurrency(transData[0].currency);
@@ -94,11 +108,7 @@ function App() {
     setIsLoadingData(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/analytics/reset`, { method: 'POST' });
-      if (!res.ok) {
-        throw new Error('Failed to reset dashboard data');
-      }
-      const emptySummary = await res.json();
+      const emptySummary = await apiClient.post<SummaryData>('/analytics/reset');
       setSummary(emptySummary);
       setTransactions([]);
       setMessages([]);
@@ -125,27 +135,15 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch(`${API_BASE}/upload`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || "Upload failed");
-      }
-
-      const data = await response.json();
+      // Use centralized API client for file upload
+      const data = await apiClient.postForm<UploadResponse>('/upload', formData);
       
-      // Handle new response structure { transactions, metadata }
+      // Handle response structure { transactions, metadata }
       if (data.transactions) {
         setTransactions(data.transactions);
         if (data.metadata?.currency) {
           setCurrency(data.metadata.currency);
         }
-      } else {
-        // Fallback for array response if API hasn't updated or cached
-        setTransactions(data);
       }
 
       // Refresh analytics after successful upload
@@ -356,20 +354,13 @@ function SnapshotCard({ transactions }: { transactions: Transaction[] }) {
     const fetchSnapshot = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/chat`, {
-
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: 'Get snapshot',
-            context: 'TRANSACTIONS_PAGE',
-            history: []
-          })
+        // Use centralized API client
+        const data = await apiClient.post<ChatResponse>('/chat', {
+          message: 'Get snapshot',
+          context: 'TRANSACTIONS_PAGE',
+          history: []
         });
-        if (res.ok) {
-          const data = await res.json();
-          setContent(data.response);
-        }
+        setContent(data.response);
       } catch (err) {
         console.error("Failed to fetch snapshot", err);
         setContent("Failed to load financial snapshot.");

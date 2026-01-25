@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { User, Bot, Sparkles, ArrowUp, ArrowDown } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '../lib/utils';
+import { apiClient } from '../lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -10,6 +11,10 @@ import type { Message } from '../App';
 interface ChatInterfaceProps {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+}
+
+interface ChatResponse {
+  response: string;
 }
 
 export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
@@ -45,27 +50,24 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
-    const apiBase = import.meta.env.VITE_API_BASE;
-    if (!apiBase) throw new Error("API_BASE not defined");
-
     try {
-      const response = await fetch(`${apiBase}/api/v1/chat`, {
-
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: userMessage,
-          history: messages.map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', content: m.content })),
-          context: 'FINANCIAL_AI_PAGE'
-        })
+      // Use centralized API client for chat requests
+      const data = await apiClient.post<ChatResponse>('/chat', {
+        message: userMessage,
+        history: messages.map(m => ({ 
+          role: m.role === 'bot' ? 'assistant' : 'user', 
+          content: m.content 
+        })),
+        context: 'FINANCIAL_AI_PAGE'
       });
-
-      if (!response.ok) throw new Error("Agent failed to respond.");
-
-      const data = await response.json();
+      
       setMessages(prev => [...prev, { role: 'bot', content: data.response }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'bot', content: "I'm sorry, I'm having trouble connecting to the financial agent right now." }]);
+    } catch (error) {
+      console.error('Chat API error:', error);
+      setMessages(prev => [...prev, { 
+        role: 'bot', 
+        content: "I'm sorry, I'm having trouble connecting to the financial agent right now." 
+      }]);
     } finally {
       setIsLoading(false);
     }
@@ -250,4 +252,3 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     </div>
   );
 }
-
