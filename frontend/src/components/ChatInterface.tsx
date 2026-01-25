@@ -46,7 +46,8 @@ export function ChatInterface({ messages, setMessages }: ChatInterfaceProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/chat/', {
+      const response = await fetch('https://abdullah2k05-money-lens-backend.hf.space/api/v1/chat', {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
